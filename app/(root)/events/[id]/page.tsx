@@ -1,12 +1,12 @@
 import Image from "next/image";
 
 import CheckoutButton from "@/components/shared/CheckoutButton";
-import { getEventId } from "@/lib/actions/event.actions";
+import { getEventById } from "@/lib/actions/event.actions";
 import { SearchParamProps } from "@/types";
 import { formatDateTime } from "@/lib/utils";
 
 const EventDetailsPage = async ({ params: { id } }: SearchParamProps) => {
-  const event = await getEventId(id);
+  const event = await getEventById(id);
 
   // console.log(event);
 

@@ -1,6 +1,14 @@
 "use server";
 
-import { CreateEventParams, GetAllEventsParams } from "@/types";
+import { revalidatePath } from "next/cache";
+
+import {
+  CreateEventParams,
+  DeleteEventParams,
+  GetAllEventsParams,
+  GetRelatedEventsByCategoryParams,
+  UpdateEventParams,
+} from "@/types";
 import { handleError } from "../utils";
 import { connectToDB } from "../database";
 import User from "../database/models/user.model";
@@ -41,7 +49,7 @@ export const createEvent = async ({
   }
 };
 
-export const getEventId = async (eventId: string) => {
+export const getEventById = async (eventId: string) => {
   try {
     await connectToDB();
 
@@ -69,6 +77,77 @@ export const getAllEvents = async ({
     const eventsQuery = Event.find(conditions)
       .sort({ createdAt: "desc" })
       .skip(0)
+      .limit(limit);
+
+    const events = await populateEvent(eventsQuery);
+    const eventsCount = await Event.countDocuments(conditions);
+
+    return {
+      data: JSON.parse(JSON.stringify(events)),
+      totalPages: Math.ceil(eventsCount / limit),
+    };
+  } catch (err) {
+    handleError(err);
+  }
+};
+
+export const updateEvent = async ({
+  userId,
+  event,
+  path,
+}: UpdateEventParams) => {
+  try {
+    await connectToDB();
+
+    const eventToUpdate = await Event.findById(event._id);
+    if (!eventToUpdate || eventToUpdate.organizer.toHexString() !== userId) {
+      throw new Error("Unauthorized or event not found");
+    }
+
+    const updatedEvent = await Event.findByIdAndUpdate(
+      event._id,
+      { ...event, category: event.categoryId },
+      { new: true }
+    );
+    revalidatePath(path);
+
+    return JSON.parse(JSON.stringify(updatedEvent));
+  } catch (error) {
+    handleError(error);
+  }
+};
+
+export const deleteEvent = async ({ eventId, path }: DeleteEventParams) => {
+  try {
+    await connectToDB();
+
+    const deletedEvent = await Event.findByIdAndDelete(eventId);
+
+    if (deletedEvent) revalidatePath(path);
+
+    return JSON.parse(JSON.stringify(event));
+  } catch (err) {
+    handleError(err);
+  }
+};
+
+export const getRelatedEventsByCategory = async ({
+  categoryId,
+  eventId,
+  limit = 3,
+  page = 1,
+}: GetRelatedEventsByCategoryParams) => {
+  try {
+    await connectToDB();
+
+    const skipAmount = (Number(page) - 1) * limit;
+    const conditions = {
+      $and: [{ category: categoryId }, { _id: { $ne: eventId } }],
+    };
+
+    const eventsQuery = Event.find(conditions)
+      .sort({ createdAt: "desc" })
+      .skip(skipAmount)
       .limit(limit);
 
     const events = await populateEvent(eventsQuery);
